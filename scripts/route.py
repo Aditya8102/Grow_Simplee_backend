@@ -1240,11 +1240,10 @@ def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pick
   print(updated_initial_route_of_delivery)
   return updated_initial_route_of_delivery,add,awb
 
-def mainMan():
+def main():
     APIKEY="AIzaSyCtfZjJ6cJO1EkdIpDSX_o1CPELWV456Sc"
     initial_route_of_delivery,updated_initial_route_of_delivery,add,awb=delivery("/content/bangalore dispatch address (1).csv",APIKEY)
-
-    API_KEY = 'AIzaSyCtfZjJ6cJO1EkdIpDSX_o1CPELWV456Sc' 
+ 
     pickup_demand_link="/content/7_pickup_demand.csv"   
     pickup_add_link="/content/7_pickup.csv"
 
