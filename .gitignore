@@ -10,6 +10,10 @@ third_party/
 
 db.sqlite3
 
+output_files/
+
+input_files/
+
 
 
 
