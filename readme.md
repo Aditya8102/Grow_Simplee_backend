@@ -26,8 +26,8 @@ python manage.py createsuperuser
 ```
 
 **Generating optimized Route**:
-1. Place the input files in the input_files folder. 
-2. Add apikey in the scripts/route.py file from gcp with goole maps enabled in the main function. 
+1. Place the input files in the *input_files* folder. 
+2. Add apikey in the scripts/route.py file from gcp in the main function. 
 ```
     APIKEY="INSERT API KEY HERE"
 ```
@@ -56,7 +56,7 @@ The api endpoint to trigger the feeding is: `/address/feeder/`
 
 ## Algorithm used for solving VRP:
  We have used heuristic stratezied algorithms for solving VRP 
- i.e-Clarke and Wright SAVING AND path_cheapest_ARC where it's results are then enhanced by local search options such as simulated annealing,tabu_search and guided local search options
+ i.e-Clarke and Wright SAVING amd path_cheapest_ARC where it's results are then enhanced by local search options such as simulated annealing,tabu_search and guided local search options
 
 
 ## Technologies Used:
