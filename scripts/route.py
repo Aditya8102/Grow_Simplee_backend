@@ -12,13 +12,58 @@ from ortools.constraint_solver import pywrapcp
 
 
 def delivery(delivery_addlink,delivery_demandslink,API_KEY):
-  def read_address(delivery_addlink):
+  def get_valid_address(address):
+    print("Get valid address has been run.... ")
+    api_key = API_KEY
+    url = "https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}".format(address, api_key)
+
+    response = requests.get(url)
+    data = response.json()
+
+    if data["status"] == "OK":
+        return data["results"][0]["formatted_address"]
+    else:
+        return None
+
+  def incorrect_add(delivery_addlink):
+    print("Incorrect Add has been run. ")
+    incorrect_list=[]
+    incorrect_list_awb=[]
+    incorrect_list_index=[]
+    dfde = pd.read_csv(delivery_addlink)
+    awb1= dfde['AWB'].to_list()
+    datalistde= dfde['address'].to_list()
+    # datalistde= dfde['address'].to_list()
+    for i in range(len(datalistde)):
+      if(not get_valid_address(datalistde[i])):
+        incorrect_list.append(datalistde[i])
+        incorrect_list_awb.append(awb1[i])
+        incorrect_list_index.append(i)
+
+    return incorrect_list,incorrect_list_awb,incorrect_list_index
+
+
+
+
+
+
+  def read_address(delivery_addlink,incorrect_list,incorrect_list_awb):
+    print("Read Address function has been run....")
     dfd = pd.read_csv(delivery_addlink)
     datalistd= dfd['address'].to_list()
+    for i in datalistd:
+      if(i in incorrect_list):
+        datalistd.remove(i)
     dfd1 = pd.read_csv(delivery_addlink)
-    add= dfd1['address'].to_list()
+    add=[]
+    for i in datalistd:
+      add.append(i)
+    # add= dfd1['address'].to_list()
     dfd2 = pd.read_csv(delivery_addlink)
     awb= dfd2['AWB'].to_list()
+    for i in awb:
+      if(i in incorrect_list_awb):
+        awb.remove(i)
     delivery_add=datalistd # list of addreses->delivery_add
     
     #convert addresses to lat and long
@@ -38,6 +83,7 @@ def delivery(delivery_addlink,delivery_demandslink,API_KEY):
     return delivery_add,add,awb,datalistd,latitude_delivery,longitude_delivery
 
   def time_calculator(lon1, lat1, lon2, lat2):
+    print("TIme Calculator function has been run ...")
     lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
     newlon = lon2 - lon1
     newlat = lat2 - lat1
@@ -49,6 +95,7 @@ def delivery(delivery_addlink,delivery_demandslink,API_KEY):
 
   #creating time matrix from disptach loctions 
   def create_time_matrix(latitude_delivery,longitude_delivery):
+    print("Creaete time matrix funciton has been run")
     time_matrix = np.zeros((len(latitude_delivery),len(longitude_delivery)))
     for i in range(len(longitude_delivery)):
       for j in range(len(longitude_delivery)):
@@ -58,6 +105,7 @@ def delivery(delivery_addlink,delivery_demandslink,API_KEY):
 
   # creating time_windows:
   def create_time_windows(delivery_add):
+      print("Create time window function has been run ")
       time_windows = []
       for i in range(len(delivery_add)):
          time_windows.append((0,360*60))
@@ -66,24 +114,29 @@ def delivery(delivery_addlink,delivery_demandslink,API_KEY):
 
   # creating demands list
   # file needs to be uploaded
-  def read_demands(delivery_demandslink):
+  def read_demands(delivery_demandslink,incorrect_list_index):
+    print("Read demands function has been run ")
     demands=[]  
     dd=pd.read_csv(delivery_demandslink)
-    demands1=dd['demand'].to_list()
+    demands1=dd['demands'].to_list()
     for i in range(len(demands1)):
-      demands.append(demands1[i])
+      if(i not in incorrect_list_index):
+        demands.append(demands1[i])
     return demands
 
   def vehicles_number(delivery_add):
+      print("Vehicles_number has been run .... ")
       num_vehicles=math.floor(len(delivery_add)/20)
       return num_vehicles
 
   # adding vehicle capacities
   def delivery_capacity(num_vehicles):
+    print("delivery_capacity function has been run ..... ")
     vehicle_capacities=[640000]*num_vehicles
     return vehicle_capacities
 
   def delivery_vrp(time_matrix1,initial_route_of_delivery,time_windows,num_vehicles,demands,vehicle_capacities,depot_index):
+    print("Delivery_vrp function has been run ....")
     
     time_limit_seconds = 300 # time limit for calculation #could be calculated later
     def create_data_model(time_matrix, time_windows, num_vehicles, demands, vehicle_capacities, depot_index):
@@ -302,49 +355,63 @@ def delivery(delivery_addlink,delivery_demandslink,API_KEY):
       df = pd.DataFrame(initial_dict)
       df.to_csv(f'Initial_Driver {key}.csv')
 
-    # calling of above functions starts from this point on: 
 
-
-  delivery_add,add,awb,datalistd,latitude_delivery,longitude_delivery=read_address(delivery_addlink)
+  incorrect_list,incorrect_list_awb,incorrect_list_index=incorrect_add(delivery_addlink)
+  delivery_add,add,awb,datalistd,latitude_delivery,longitude_delivery=read_address(delivery_addlink,incorrect_list,incorrect_list_awb)
   time_matrix=create_time_matrix(latitude_delivery,longitude_delivery)
   time_windows=create_time_windows(delivery_add)
-#   demands=read_demands(delivery_demandslink)
-  np.random.seed(101)
-  demands = np.random.randint(27,32000,size= (215))
-  demands[0] = 0
+  demands=read_demands(delivery_demandslink,incorrect_list_index)
   
   num_vehicles=vehicles_number(delivery_add)
   vehicle_capacities=delivery_capacity(num_vehicles)
   initial_route_of_delivery={}
-  # delivery_vrp(time_matrix,initial_route_of_delivery)
   depot_index=0
 
 
   delivery_vrp(time_matrix,initial_route_of_delivery,time_windows,num_vehicles,demands,vehicle_capacities,depot_index)
-
   updated_initial_route_of_delivery,maxload_per_rider=route_carry_forward(initial_route_of_delivery)
-  print(maxload_per_rider)
   final_route_of_delivery=create_final_route( updated_initial_route_of_delivery)
   final_route_of_delivery=update_final_route(final_route_of_delivery,maxload_per_rider,awb,add,latitude_delivery,longitude_delivery)
   create_delivery_csv(final_route_of_delivery)
-  print(delivery_add)
-  print(add)
-  print(awb)
-  print(datalistd)
-  print(latitude_delivery)       
-  print(longitude_delivery)
-  print(demands)
-  print(time_matrix)
-  print(initial_route_of_delivery)
-  print(maxload_per_rider)
-  print(final_route_of_delivery)
-  print(updated_initial_route_of_delivery)
   return initial_route_of_delivery,updated_initial_route_of_delivery,add,awb
+
 
 
 def pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_demand_link,API_KEY):
   # time_list4={}
+  def get_valid_address(address):
+    api_key = API_KEY
+    url = "https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}".format(address, api_key)
+
+    response = requests.get(url)
+    data = response.json()
+
+    if data["status"] == "OK":
+        return data["results"][0]["formatted_address"]
+    else:
+        return None
   
+ 
+  
+  def incorrect_add(pickup_add_link):
+    incorrect_list=[]
+    incorrect_list_awb=[]
+    incorrect_list_index=[]
+    dfde = pd.read_csv(pickup_add_link)
+    awb1= dfde['AWB'].to_list()
+    datalistde= dfde['address'].to_list()
+    # datalistde= dfde['address'].to_list()
+    for i in range(len(datalistde)):
+      if(not get_valid_address(datalistde[i])):
+        incorrect_list.append(datalistde[i])
+        incorrect_list_awb.append(awb1[i])
+        incorrect_list_index.append(i)
+
+    return incorrect_list,incorrect_list_awb,incorrect_list_index
+
+
+
+
 
   def create_delivery_add(add):
     delivery_add=[]
@@ -354,31 +421,40 @@ def pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_dema
     return delivery_add
   # the previous data used 1st pickup (using few functions for 1st pickup)
   # not general
-  def merge(pickup_add_link,add,awb):
+
+
+
+
+  def merge(pickup_add_link,add,awb,incorrect_list,incorrect_list_awb):
     merge2add=[]
     merge2awb=[]
     dfp = pd.read_csv(pickup_add_link)
     merge2add= dfp['address'].to_list()
+    for i in merge2add:
+      if(i in incorrect_list):
+        merge2add.remove(i)
+
     merge2awb=dfp['AWB'].to_list()
+    for i in merge2awb:
+      if(i in incorrect_list_awb):
+        merge2awb.remove(i)
     add=add+merge2add
     awb=awb+merge2awb
     # print(add,awb)
     return add,awb
 
-
-  
-
-
-  # general pickup
-  def add_pickup(pickup_add_link):
+  def add_pickup(pickup_add_link,incorrect_list):
     dfp = pd.read_csv(pickup_add_link)
     pickupadd_list= dfp['address'].to_list()
+    for i in pickupadd_list:
+      if(i in incorrect_list):
+        pickupadd_list.remove(i)
+
     for i in range(len(pickupadd_list)):
       pickupadd_list[i]=pickupadd_list[i].replace(" ","+")
     pickup_add=pickupadd_list
     # print(pickup_add)
     return pickup_add 
-
   #general pickup
   def pickup_start_takinglast_nodeandtime(updated_initial_route_of_delivery):
     list1=[]
@@ -486,7 +562,10 @@ def pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_dema
    return multi_depot,multi_endhub
 
 
-  def pickup_demands(pickup_demand_link,multi_depot):
+
+
+
+  def pickup_demands(pickup_demand_link,multi_depot,incorrect_list_index):
     # multi_depot,multi_endhub=multi_end_and_depot(updated_initial_route_of_delivery)
     demands_multidepot=[]
     demands_multidepot.append(0)
@@ -494,7 +573,11 @@ def pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_dema
       demands_multidepot.append(0)
     pickupdemands_list=[]
     dfpd = pd.read_csv(pickup_demand_link)
-    pickupdemands_list= dfpd['demand'].to_list()
+    pickupdemands_list1= dfpd['demand'].to_list()
+    pickupdemands_list=[]
+    for i in range(len(pickupdemands_list1)):
+      if i not in incorrect_list_index:
+        pickupdemands_list.append(pickupdemands_list1[i])
     for i in pickupdemands_list:
       demands_multidepot.append(i)
     # print(demands_multidepot)
@@ -510,10 +593,10 @@ def pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_dema
     return num_vehiclemax,vehicle_capacitys
 
 
-  def creating_timewindow_new(pickup_add_link,time_listupdate):
+  def creating_timewindow_new(pickup_add,time_listupdate):
     # list1,list2,time_listupdate=pickup_start_takinglast_nodeandtime(updated_initial_route_of_delivery)
     time_windows_new=[]
-    pickup_add=add_pickup(pickup_add_link)
+    # pickup_add=add_pickup(pickup_add_link)
     for i in range(len(time_listupdate)):
       time_windows_new.append((time_listupdate[i],300*60))
     for i in range(len(pickup_add)):
@@ -747,53 +830,85 @@ def pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_dema
       df.to_csv(f'Final_Driver{key}.csv')
 
 
+
+  incorrect_list,incorrect_list_awb,incorrect_list_index=incorrect_add(pickup_add_link)
+  # print(incorrect_list)
   delivery_add=create_delivery_add(add)
-  print(delivery_add)
-  add,awb=merge(pickup_add_link,add,awb)
-  print(add,awb)
-  print(len(add))
+  # print(delivery_add)
+  add,awb=merge(pickup_add_link,add,awb,incorrect_list,incorrect_list_awb)
+  # print(add,awb)
+  # print(len(add))
   
-  pickup_add=add_pickup(pickup_add_link)
-  print(pickup_add)
+  pickup_add=add_pickup(pickup_add_link,incorrect_list)
+  # print(pickup_add)
   list1,list2,time_listupdate=pickup_start_takinglast_nodeandtime(updated_initial_route_of_delivery)
-  print(list1)
-  print(list2)
-  print(time_listupdate)
+  # print(list1)
+  # print(list2)
+  # print(time_listupdate)
   address=address(delivery_add,list1)
-  print(address)
+  # print(address)
   latitude_total,longitude_total=lat_long_pickup(add)
-  print(latitude_total)
-  print(longitude_total)
+  # print(latitude_total)
+  # print(longitude_total)
   list1=appending_list1_forpickup(pickup_add,list1,delivery_add)
-  print(list1)
+  # print(list1)
   address=update_address(address,pickup_add)
-  print(address)
+  # print(address)
   latitude_partial,longitude_partial=lat_long_pickup1(address)
   time_matrix2=time_matrix(latitude_partial,longitude_partial)
-  print(time_matrix2)
+  # print(time_matrix2)
   multi_depot,multi_endhub=multi_end_and_depot(list2)
-  print(multi_depot,multi_endhub)
-  demands_multidepot=pickup_demands(pickup_demand_link,multi_depot)
-  print(demands_multidepot)
+  # print(multi_depot,multi_endhub)
+  demands_multidepot=pickup_demands(pickup_demand_link,multi_depot,incorrect_list_index)
+  # print(demands_multidepot)
   num_vehiclemax,vehicle_capacitys=numvech_max_and_vehiclecap(list2)
-  print(num_vehiclemax,vehicle_capacitys)
-  time_windows_new=creating_timewindow_new(pickup_add_link,time_listupdate)
-  print(time_windows_new)
+  # print(num_vehiclemax,vehicle_capacitys)
+  time_windows_new=creating_timewindow_new(pickup_add,time_listupdate)
+  # print(time_windows_new)
   time_list4={} 
   pickup_vrp(time_windows_new,time_matrix2,multi_depot,multi_endhub,demands_multidepot,num_vehiclemax,vehicle_capacitys,time_list4)
-  print(time_list4)
+  # print(time_list4)
   time_list4=update_time_list(time_list4,list1)
-  print(time_list4)
+  # print(time_list4)
   updated_initial_route_of_delivery=update_updated_initial_route_of_delivery(time_list4,updated_initial_route_of_delivery,add,awb,latitude_total,longitude_total)
-  print(updated_initial_route_of_delivery)
+  # print(updated_initial_route_of_delivery)
   create_final_csv(updated_initial_route_of_delivery)
-  print(updated_initial_route_of_delivery)
+  # print(updated_initial_route_of_delivery)
   return updated_initial_route_of_delivery,add,awb
+
 
 
 def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_demand_link,API_KEY):
   # time_list4={}
+  def get_valid_address(address):
+    api_key = API_KEY
+    url = "https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}".format(address, api_key)
+
+    response = requests.get(url)
+    data = response.json()
+
+    if data["status"] == "OK":
+        return data["results"][0]["formatted_address"]
+    else:
+        return None
   
+
+
+  def incorrect_add(pickup_add_link):
+    incorrect_list=[]
+    incorrect_list_awb=[]
+    incorrect_list_index=[]
+    dfde = pd.read_csv(pickup_add_link)
+    awb1= dfde['AWB'].to_list()
+    datalistde= dfde['address'].to_list()
+    # datalistde= dfde['address'].to_list()
+    for i in range(len(datalistde)):
+      if(not get_valid_address(datalistde[i])):
+        incorrect_list.append(datalistde[i])
+        incorrect_list_awb.append(awb1[i])
+        incorrect_list_index.append(i)
+
+    return incorrect_list,incorrect_list_awb,incorrect_list_index
 
   def create_delivery_add(add):
     delivery_add=[]
@@ -801,27 +916,39 @@ def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pick
       i=i.replace(" ","+")
       delivery_add.append(i)
     return delivery_add
-  # the previous data used 1st pickup (using few functions for 1st pickup)
-  # not general
-  def merge(pickup_add_link,add,awb):
+
+
+
+
+  def merge(pickup_add_link,add,awb,incorrect_list,incorrect_list_awb):
     merge2add=[]
     merge2awb=[]
     dfp = pd.read_csv(pickup_add_link)
     merge2add= dfp['address'].to_list()
+    for i in merge2add:
+      if(i in incorrect_list):
+        merge2add.remove(i)
+
     merge2awb=dfp['AWB'].to_list()
+    for i in merge2awb:
+      if(i in incorrect_list_awb):
+        merge2awb.remove(i)
     add=add+merge2add
     awb=awb+merge2awb
     # print(add,awb)
     return add,awb
 
-
   
 
 
   # general pickup
-  def add_pickup(pickup_add_link):
+  def add_pickup(pickup_add_link,incorrect_list):
     dfp = pd.read_csv(pickup_add_link)
     pickupadd_list= dfp['address'].to_list()
+    for i in pickupadd_list:
+      if(i in incorrect_list):
+        pickupadd_list.remove(i)
+
     for i in range(len(pickupadd_list)):
       pickupadd_list[i]=pickupadd_list[i].replace(" ","+")
     pickup_add=pickupadd_list
@@ -935,15 +1062,34 @@ def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pick
    return multi_depot,multi_endhub
 
 
-  def pickup_demands(pickup_demand_link,multi_depot,load_listupdate):
+  #  def pickup_demands(pickup_demand_link,multi_depot,load_listupdate):
+  #   # multi_depot,multi_endhub=multi_end_and_depot(updated_initial_route_of_delivery)
+  #   demands_multidepot=[]
+  #   # demands_multidepot.append(0)
+  #   for i in range(len(multi_depot)+1):
+  #     demands_multidepot.append(load_listupdate[i])
+  #   pickupdemands_list=[]
+  #   dfpd = pd.read_csv(pickup_demand_link)
+  #   pickupdemands_list= dfpd['demand'].to_list()
+  #   for i in pickupdemands_list:
+  #     demands_multidepot.append(i)
+  #   # print(demands_multidepot)
+  #   return demands_multidepot
+
+
+  def pickup_demands(pickup_demand_link,multi_depot,load_listupdate,incorrect_list_index):
     # multi_depot,multi_endhub=multi_end_and_depot(updated_initial_route_of_delivery)
     demands_multidepot=[]
     # demands_multidepot.append(0)
     for i in range(len(multi_depot)+1):
       demands_multidepot.append(load_listupdate[i])
-    pickupdemands_list=[]
+    # pickupdemands_list1=[]
     dfpd = pd.read_csv(pickup_demand_link)
-    pickupdemands_list= dfpd['demand'].to_list()
+    pickupdemands_list1= dfpd['demand'].to_list()
+    pickupdemands_list=[]
+    for i in range(len(pickupdemands_list1)):
+      if i not in incorrect_list_index:
+        pickupdemands_list.append(pickupdemands_list1[i])
     for i in pickupdemands_list:
       demands_multidepot.append(i)
     # print(demands_multidepot)
@@ -959,10 +1105,15 @@ def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pick
     return num_vehiclemax,vehicle_capacitys
 
 
-  def creating_timewindow_new(pickup_add_link,time_listupdate):
+
+
+
+
+
+  def creating_timewindow_new(pickup_add,time_listupdate):
     # list1,list2,time_listupdate=pickup_start_takinglast_nodeandtime(updated_initial_route_of_delivery)
     time_windows_new=[]
-    pickup_add=add_pickup(pickup_add_link)
+    # pickup_add=add_pickup(pickup_add_link)
     for i in range(len(time_listupdate)):
       time_windows_new.append((time_listupdate[i],300*60))
     for i in range(len(pickup_add)):
@@ -1193,16 +1344,17 @@ def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pick
         longitude.append(j[6])
       final_dict = {'Nodes': Nodes, 'Time': Time, 'Load': Load,'AWB_NO':AWB_NO,'Address':Address,'latitude':latitude,'longitude':longitude}  
       df = pd.DataFrame(final_dict)
-      df.to_csv(f'Final_Driver{key}.csv')
+      df.to_csv(f'Final_Driver1{key}.csv')
 
-
+  incorrect_list,incorrect_list_awb,incorrect_list_index=incorrect_add(pickup_add_link)
+  print("hi",incorrect_list)
   delivery_add=create_delivery_add(add)
   print(delivery_add)
-  add,awb=merge(pickup_add_link,add,awb)
+  add,awb=merge(pickup_add_link,add,awb,incorrect_list,incorrect_list_awb)
   print(add,awb)
   print(len(add))
   
-  pickup_add=add_pickup(pickup_add_link)
+  pickup_add=add_pickup(pickup_add_link,incorrect_list)
   print(pickup_add)
   list1,list2,time_listupdate,load_listupdate=pickup_start_takinglast_nodeandtime(updated_initial_route_of_delivery)
   print(list1)
@@ -1223,11 +1375,14 @@ def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pick
   print(time_matrix2)
   multi_depot,multi_endhub=multi_end_and_depot(list2)
   print(multi_depot,multi_endhub)
-  demands_multidepot=pickup_demands(pickup_demand_link,multi_depot,load_listupdate)
+
+
+  # pickup_demands(pickup_demand_link,multi_depot,incorrect_list_index)
+  demands_multidepot=pickup_demands(pickup_demand_link,multi_depot,load_listupdate,incorrect_list_index)
   print(demands_multidepot)
   num_vehiclemax,vehicle_capacitys=numvech_max_and_vehiclecap(list2)
   print(num_vehiclemax,vehicle_capacitys)
-  time_windows_new=creating_timewindow_new(pickup_add_link,time_listupdate)
+  time_windows_new=creating_timewindow_new(pickup_add,time_listupdate)
   print(time_windows_new)
   time_list4={} 
   pickup_vrp(time_windows_new,time_matrix2,multi_depot,multi_endhub,demands_multidepot,num_vehiclemax,vehicle_capacitys,time_list4)
@@ -1242,14 +1397,18 @@ def second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pick
 
 def main():
     APIKEY="AIzaSyCtfZjJ6cJO1EkdIpDSX_o1CPELWV456Sc"
-    initial_route_of_delivery,updated_initial_route_of_delivery,add,awb=delivery("/content/bangalore dispatch address (1).csv",APIKEY)
+    initial_route_of_delivery,updated_initial_route_of_delivery,add,awb=delivery("/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/input_files/bangalore dispatch address5.csv","/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/input_files/delivery_demands.csv",APIKEY)
  
-    pickup_demand_link="/content/7_pickup_demand.csv"   
-    pickup_add_link="/content/7_pickup.csv"
+    pickup_demand_link="/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/input_files/7_pickup_demand (2).csv"   
+    pickup_add_link="/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/input_files/Pickup_final.csv"
 
-    updated_initial_route_of_delivery,add,awb=pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_demand_link,API_KEY)
+    updated_initial_route_of_delivery,add,awb=pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_demand_link,APIKEY)
 
-    pickup_add_link="/content/pickup2_delivery.csv"
-    pickup_demand_link="/content/pickup2_demands.csv"   
+    pickup_add_link="/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/input_files/pickup2_delivery(1).csv"
+    pickup_demand_link="/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/input_files/pickup2_demands(1).csv"   
 
-    updated_initial_route_of_delivery,add,awb=second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_demand_link,API_KEY)
+    updated_initial_route_of_delivery,add,awb=second_pickup(updated_initial_route_of_delivery,add,awb,pickup_add_link,pickup_demand_link,APIKEY)
+
+
+if __name__ == '__main__':
+    main()

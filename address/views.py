@@ -5,6 +5,7 @@ from .serializers import *
 from rest_framework.permissions import IsAuthenticated
 from login.models import USER_CHOICES, Account
 from .models import *
+from datetime import datetime
 
 
 @api_view(['POST']) 
@@ -12,24 +13,35 @@ from .models import *
 def LocationPointers(request):
     cuser = request.user
     if cuser == None: 
-        return Response(status=status.HTTP_404_NOT_FOUND, )
+        return Response(status=status.HTTP_404_NOT_FOUND, data = "Wrong user ")
     else:
-        if cuser.userType == USER_CHOICES[1][0]:
+
+        if cuser.userType == "DP":
             orders = Order.objects.filter(driver = cuser)
-            day = request.data.get('calculated_date', None),
+            day = str(request.data['calculated_date']),
+            daystr = ''
+            for item in day:
+                daystr = daystr + item
+            format = '%Y/%m/%d'
+            dayDate = datetime.strptime(daystr, format).date()
             orderList = []
             for order in orders:
-                if order.calulatedDeliveryDate == day:
+                if order.calulatedDeliveryDate.date() == dayDate:
                     orderList.append(order)
             serializedOrders = OrderSerializer(orderList, many = True)
 
             ResponseData = {
-                    'Data' : serializedOrders.data,
+                    'resp' : serializedOrders.data,
                     }
             return Response(data = ResponseData, status = 200)
-        elif cuser.userType == USER_CHOICES[2][0]:
+        elif cuser.userType == "DA":
             orders = Order.objects.all()
-            day = request.data.get('calculated_date', None),
+            day = str(request.data['calculated_date']),
+            daystr = ''
+            for item in day:
+                daystr = daystr + item
+            format = '%Y/%m/%d'
+            dayDate = datetime.strptime(daystr, format).date()
             orderList = []
             for order in orders:
                 if order.calulatedDeliveryDate == day:
