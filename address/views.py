@@ -44,7 +44,7 @@ def LocationPointers(request):
             dayDate = datetime.strptime(daystr, format).date()
             orderList = []
             for order in orders:
-                if order.calulatedDeliveryDate == day:
+                if order.calulatedDeliveryDate.date() == dayDate:
                     orderList.append(order)
             serializedOrders = OrderSerializer(orderList, many = True)
             ResponseData = {
