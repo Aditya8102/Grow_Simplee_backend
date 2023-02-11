@@ -10,8 +10,11 @@ def createEntry(driverNo, index, nodes, time, load, awb_no, address, latitude, l
         longitude = longitude,
         address = address
     )
-    driver = Account.objects.filter(id = driverNo)[0]
+    print(location)
+    driver = Account.objects.filter(email = 'driver1@gmail.com')[0]
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    print(today)
+    
     order = Order.objects.create(
         driver = driver,
         location = location, 
@@ -23,7 +26,7 @@ def createEntry(driverNo, index, nodes, time, load, awb_no, address, latitude, l
         calulatedDeliveryDate = today
     )
 def csvFileReader(path_to_csv):
-    driverNo = path_to_csv.split('/')[-1].split('.')[0].split(' ')[-1]
+    driverNo = path_to_csv.split('/')[-1].split('.')[0].split('_')[-1]
     with open(path_to_csv, 'r') as file_obj:
         read_obj = csv.reader(file_obj)
         header = next(read_obj)
@@ -44,4 +47,4 @@ def csvFileReader(path_to_csv):
                     print("Entry for "+ str(index) + " not creatd. Row  ")
         print("total entries "+str(count))
 
-csvFileReader("/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/output_files/Initial_Driver 1.csv")
+csvFileReader("/home/parwaan/Desktop/InterIIT_2021/h2c_backend/delivery/input_files/Final_Driver50.csv")
