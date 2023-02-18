@@ -26,13 +26,13 @@ def registration(request):
         }
         UserLevel = request.data['level']
         # password = request.data['password']
-        level = ""
+        level = ''
         if UserLevel == 'DP':
-            level = USER_CHOICES[0][0]
+            level = 'DP'
         elif UserLevel == 'AD':
-            level = USER_CHOICES[1][0]
+            level = 'AD'
         elif UserLevel == 'PA':
-            level = USER_CHOICES[2][0]
+            level = 'PA'
         
         requester['userType'] = level
         serializer = RegistrationSerializer(data = requester)
